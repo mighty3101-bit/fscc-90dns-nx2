@@ -10,8 +10,8 @@ SOURCES		:=	source
 DATA		:=	data
 INCLUDES	:=	include
 APP_TITLE	:=	90DNS Tester NX2
-APP_AUTHOR	:=	mighty3101
-APP_VERSION	:=	1.1.0
+APP_AUTHOR	:=	Reyn
+APP_VERSION	:=	1.2.0
 ARCH		:=	$(SWITCH2_CPU) -mtp=soft -fPIE
 CFLAGS		:=	-g -Wall -O2 -ffunction-sections $(ARCH) $(DEFINES)
 CFLAGS		+=	$(INCLUDE) -D__SWITCH__

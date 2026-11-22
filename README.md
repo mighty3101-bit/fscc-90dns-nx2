@@ -2,7 +2,9 @@
 
 Native Nintendo Switch 2 DNS & connectivity verification homebrew built with [ounce-devkit / libounce](https://github.com/ouncebrew/ounce-devkit).
 
-Works with **public 90DNS**, **self-hosted 90DNS**, **DNS-MITM (`hosts/default.txt`)**, **custom DNS/hotspot blockers**, and **kaiHEN** environments.
+Author: **Reyn**
+
+Works worldwide with **public 90DNS**, **self-hosted 90DNS**, **DNS-MITM (`hosts/default.txt`)**, **custom DNS/hotspot blockers**, and **kaiHEN** environments.
 
 ## Features
 - **Dual DNS Resolver Check (Legacy + Async)**:
@@ -18,7 +20,7 @@ Works with **public 90DNS**, **self-hosted 90DNS**, **DNS-MITM (`hosts/default.t
 - **Full SD Log**: Writes detailed results and IPC status codes to `sdmc:/90dns-tester-nx2.log`.
 
 ## Installation
-1. Download `90dns-tester-nx2-1.1.0.zip` (or `90dns-tester-nx2.nro`) from Releases / Actions.
+1. Download `90dns-tester-nx2-1.2.0.zip` (or `90dns-tester-nx2.nro`) from Releases / Actions.
 2. Copy `90dns-tester-nx2.nro` to `/switch/90dns-tester-nx2/90dns-tester-nx2.nro` on your SD card.
 3. Launch from Homebrew Menu.
 

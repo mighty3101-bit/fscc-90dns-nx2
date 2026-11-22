@@ -26,7 +26,7 @@ static RESOLVER_STATUS checkAsyncAddresses(const u8 *data, size_t size) {
         if (addressSize > size - offset) return DNS_ERROR;
         if (family == AF_INET && length == 16) {
             u32 address = readNetworkU32(data + offset + 4);
-            unblocked |= (address != INADDR_LOOPBACK && address != INADDR_ANY);
+            unblocked |= (address != htonl(INADDR_LOOPBACK) && address != htonl(INADDR_ANY));
             found = true;
         } else if (family == AF_INET6 && length == 28) {
             static const u8 zero[16] = {0};

@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <netinet/in.h>
 #include <switch.h>
-#define APP_VERSION_STR "1.1.0"
+#define APP_VERSION_STR "1.2.0"
 #define LOG_FILE_PATH "sdmc:/90dns-tester-nx2.log"
 #define MAX_DOMAINS 55
 #define MAX_HTTP_TARGETS 5

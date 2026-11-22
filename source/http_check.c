@@ -83,7 +83,7 @@ void runHttpConnectivityChecks(HttpCheckResult *results, size_t max_results, siz
         }
         struct sockaddr_in *sin = (struct sockaddr_in *)res->ai_addr;
         inet_ntop(AF_INET, &sin->sin_addr, r->ip, sizeof(r->ip));
-        int fd = connectWithTimeout(res, 3);
+        int fd = connectWithTimeout(res, 2);
         freeaddrinfo(res);
         if (fd < 0) {
             r->state = -2;
