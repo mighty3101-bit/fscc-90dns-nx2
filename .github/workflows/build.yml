@@ -1,0 +1,36 @@
+name: Build Switch 2 NRO
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkita64:20260219
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install ounce-devkit
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends curl ca-certificates zip
+          curl -fsSL https://raw.githubusercontent.com/ouncebrew/ounce-devkit/main/install.sh | sh
+
+      - name: Build NRO
+        run: |
+          make -j$(nproc)
+          make dist
+          ls -lh fscc-90dns-nx2.nro fscc-90dns-nx2-*.zip
+
+      - name: Upload NRO
+        uses: actions/upload-artifact@v4
+        with:
+          name: fscc-90dns-nx2-nro
+          path: |
+            fscc-90dns-nx2.nro
+            fscc-90dns-nx2-*.zip
