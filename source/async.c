@@ -42,23 +42,21 @@ static RESOLVER_STATUS checkAsyncAddresses(const u8 *data, size_t size) {
     }
     return DNS_ERROR;
 }
-RESOLVER_STATUS resolveHostnameAsync(const char *hostname, FILE *log, Result *out_probe_rc) {
+RESOLVER_STATUS resolveHostnameAsync(Service *resolver, const char *hostname, FILE *log, Result *out_probe_rc) {
     if (out_probe_rc) *out_probe_rc = 0;
     if (!serviceIsActive(bsdGetServiceSession())) return DNS_ERROR;
-    Service resolver = {0};
-    Result rc = smGetService(&resolver, "sfdnsres");
-    if (R_FAILED(rc)) { if (out_probe_rc) *out_probe_rc = rc; return DNS_ERROR; }
+    if (!resolver || !serviceIsActive(resolver)) return DNS_NA;
     const struct { u64 initial; u32 flags; u32 padding; } eventIn = {0, 0, 0};
     struct { s32 fd; s32 error; } eventOut = {-1, 0};
-    rc = serviceDispatchInOut(bsdGetServiceSession(), 31, eventIn, eventOut);
+    Result rc = serviceDispatchInOut(bsdGetServiceSession(), 31, eventIn, eventOut);
     if (R_FAILED(rc) || eventOut.fd < 0) {
         if (out_probe_rc) *out_probe_rc = rc;
-        serviceClose(&resolver);
+        if (log) fprintf(log, "[async %s] EventFd rc=0x%08X fd=%d err=%d\n", hostname, rc, eventOut.fd, eventOut.error);
         return DNS_ERROR;
     }
     const struct { u32 fd, version, count, padding; u64 pid; } queryIn = {(u32)eventOut.fd, 0, 0, 0, 0};
-    struct { u32 id; s32 retval; s32 error; } queryOut = {0};
-    rc = serviceDispatchInOut(&resolver, 100, queryIn, queryOut,
+    struct { u32 id; s32 retval; s32 error; } queryOut = {0, 0, 0};
+    rc = serviceDispatchInOut(resolver, 100, queryIn, queryOut,
         .in_send_pid = true,
         .buffer_attrs = {
             SfBufferAttr_HipcAutoSelect | SfBufferAttr_In,
@@ -72,7 +70,6 @@ RESOLVER_STATUS resolveHostnameAsync(const char *hostname, FILE *log, Result *ou
     if (R_FAILED(rc)) {
         if (out_probe_rc) *out_probe_rc = rc;
         bsdClose(eventOut.fd);
-        serviceClose(&resolver);
         return DNS_NA;
     }
     RESOLVER_STATUS status = DNS_ERROR;
@@ -84,12 +81,13 @@ RESOLVER_STATUS resolveHostnameAsync(const char *hostname, FILE *log, Result *ou
             if (bsdRead(eventOut.fd, &signal, sizeof(signal)) == sizeof(signal)) {
                 u8 buffer[0x1000] = {0};
                 const struct { u32 id; u32 version; u64 pid; } fetchIn = {queryOut.id, 0, 0};
-                struct { u32 size; s32 retval; s32 error; } fetchOut = {0};
-                rc = serviceDispatchInOut(&resolver, 102, fetchIn, fetchOut,
+                struct { u32 size; s32 retval; s32 error; } fetchOut = {0, 0, 0};
+                rc = serviceDispatchInOut(resolver, 102, fetchIn, fetchOut,
                     .in_send_pid = true,
                     .buffer_attrs = {SfBufferAttr_HipcAutoSelect | SfBufferAttr_Out},
                     .buffers = {{buffer, sizeof(buffer)}}
                 );
+                if (out_probe_rc && R_FAILED(rc)) *out_probe_rc = rc;
                 if (log) fprintf(log, "[async %s] Fetch rc=0x%08X sz=%u ret=%d err=%d\n", hostname, rc, fetchOut.size, fetchOut.retval, fetchOut.error);
                 if (R_SUCCEEDED(rc)) {
                     if (fetchOut.error == ETIMEDOUT) status = DNS_TIMEOUT;
@@ -99,11 +97,10 @@ RESOLVER_STATUS resolveHostnameAsync(const char *hostname, FILE *log, Result *ou
             }
         } else { status = (ready == 0) ? DNS_EVENT_WAIT : DNS_ERROR; }
         const struct { u32 id; u32 padding; u64 pid; } cancelIn = {queryOut.id, 0, 0};
-        serviceDispatchIn(&resolver, 104, cancelIn, .in_send_pid = true);
+        serviceDispatchIn(resolver, 104, cancelIn, .in_send_pid = true);
     } else {
         status = (queryOut.error == ETIMEDOUT) ? DNS_TIMEOUT : DNS_UNRESOLVED;
     }
     bsdClose(eventOut.fd);
-    serviceClose(&resolver);
     return status;
 }

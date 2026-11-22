@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -15,6 +16,7 @@ typedef struct { const char *host; const char *path; const char *expected_org; }
 static const HttpTestTarget httpTargets[] = {
     {"conntest.nintendowifi.net", "/", "Nintendo"},
     {"ctest.cdn.nintendo.net", "/", "Nintendo"},
+    {"ctest.p01.ctest.srv.nintendo.net", "/", "Nintendo"},
     {"api.p01.lp1.ctest.srv.nintendo.net", "/", "Nintendo"},
     {"90dns.test", "/", "LavaTech"}
 };
@@ -58,30 +60,35 @@ static void extractHeaderValue(const char *resp, const char *header_name, char *
         p = eol + 2;
     }
 }
-void runHttpFsccChecks(FILE *log) {
-    printf("\n" CONSOLE_CYAN "FSCC HTTP Check (Port 80 + X-Organization):" CONSOLE_RESET "\n");
-    if (log) fprintf(log, "\n=== FSCC HTTP Check ===\n");
+void runHttpConnectivityChecks(HttpCheckResult *results, size_t max_results, size_t *out_count, FILE *log) {
     size_t count = sizeof(httpTargets) / sizeof(httpTargets[0]);
+    if (count > max_results) count = max_results;
+    if (out_count) *out_count = count;
+    if (log) fprintf(log, "\n=== Connectivity & 90DNS HTTP Check (Port 80) ===\n");
     for (size_t i = 0; i < count; i++) {
         const HttpTestTarget *t = &httpTargets[i];
+        HttpCheckResult *r = &results[i];
+        memset(r, 0, sizeof(*r));
+        r->host = t->host;
+        r->expected_org = t->expected_org;
+        snprintf(r->ip, sizeof(r->ip), "-");
         struct addrinfo hints, *res = NULL;
         memset(&hints, 0, sizeof(hints));
         hints.ai_family = AF_INET; hints.ai_socktype = SOCK_STREAM;
         int gai = getaddrinfo(t->host, "80", &hints, &res);
         if (gai != 0 || !res) {
-            printf("  %-35s " CONSOLE_RED "DNS FAIL" CONSOLE_RESET "\n", t->host);
+            r->state = -1; r->gai_err = gai;
             if (log) fprintf(log, "  %s -> DNS FAIL (%d)\n", t->host, gai);
-            consoleUpdate(NULL); continue;
+            continue;
         }
-        char ip_str[INET_ADDRSTRLEN] = "?";
         struct sockaddr_in *sin = (struct sockaddr_in *)res->ai_addr;
-        inet_ntop(AF_INET, &sin->sin_addr, ip_str, sizeof(ip_str));
+        inet_ntop(AF_INET, &sin->sin_addr, r->ip, sizeof(r->ip));
         int fd = connectWithTimeout(res, 3);
         freeaddrinfo(res);
         if (fd < 0) {
-            printf("  %-35s " CONSOLE_YELLOW "TCP ERR (%s)" CONSOLE_RESET "\n", t->host, ip_str);
-            if (log) fprintf(log, "  %s -> %s TCP ERR\n", t->host, ip_str);
-            consoleUpdate(NULL); continue;
+            r->state = -2;
+            if (log) fprintf(log, "  %s -> %s TCP ERR\n", t->host, r->ip);
+            continue;
         }
         char req[256];
         int req_len = snprintf(req, sizeof(req), "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: Nintendo NX\r\nConnection: close\r\n\r\n", t->path, t->host);
@@ -93,13 +100,9 @@ void runHttpFsccChecks(FILE *log) {
             total += (size_t)n;
         }
         resp[total] = 0; close(fd);
-        int code = 0;
-        if (strncmp(resp, "HTTP/", 5) == 0) { const char *sp = strchr(resp, 32); if (sp) code = atoi(sp + 1); }
-        char org[64]; extractHeaderValue(resp, "X-Organization", org, sizeof(org));
-        bool ok = (code == 200 && strcasecmp(org, t->expected_org) == 0);
-        const char *col = ok ? CONSOLE_GREEN : (code == 200 ? CONSOLE_YELLOW : CONSOLE_RED);
-        printf("  %-35s %sHTTP %d [%s] (%s)" CONSOLE_RESET "\n", t->host, col, code, org[0] ? org : "none", ip_str);
-        if (log) fprintf(log, "  %s -> %s HTTP %d X-Org=%s\n", t->host, ip_str, code, org[0] ? org : "none");
-        consoleUpdate(NULL);
+        if (strncmp(resp, "HTTP/", 5) == 0) { const char *sp = strchr(resp, 32); if (sp) r->http_code = atoi(sp + 1); }
+        extractHeaderValue(resp, "X-Organization", r->org, sizeof(r->org));
+        r->state = 0;
+        if (log) fprintf(log, "  %s -> %s HTTP %d X-Org=%s\n", t->host, r->ip, r->http_code, r->org[0] ? r->org : "none");
     }
 }
